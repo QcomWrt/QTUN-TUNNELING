@@ -1,0 +1,81 @@
+#!/system/bin/sh
+# File: /data/adb/QTUN/scripts/qtun.iptables
+
+MODDIR="/data/adb/QTUN"
+JQ="$MODDIR/bin/jq"
+CONF="$MODDIR/libuz/config.json"
+
+# Ambil IP VPS & Bersihkan total
+RAW_IP=$($JQ -r '.server' "$CONF" | cut -d':' -f1)
+SERVER=$(echo "$RAW_IP" | tr -d '"' | tr -d "'" | tr -d '[:space:]') 
+
+M_PORT=7890 # Mixed Port
+R_PORT=9797 # Redir Port
+D_PORT=1053 # DNS Port
+DASH_PORT=9090
+GID=3004
+
+apply_rules() {
+    # # Forwarding & IPv6 Disable
+    # echo 1 > /proc/sys/net/ipv4/ip_forward
+    # echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
+
+    # Flush Chain NAT
+    #iptables -t nat -F OUTPUT 2>/dev/null
+    iptables -t nat -F PREROUTING 2>/dev/null
+
+    setprop net.dns1 127.0.0.1
+    setprop net.dns2 8.8.8.8
+    setprop net.eth0.dns1 127.0.0.1
+    setprop net.wlan0.dns1 127.0.0.1
+
+    # --- BYPASS ---
+    # Bypass IP VPS agar tidak loop
+    # [ ! -z "$SERVER" ] && iptables -t nat -I OUTPUT -d "$SERVER" -j RETURN 
+    # Bypass Local Traffic
+    # for ADDR in 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
+    #     iptables -t nat -I OUTPUT -d $ADDR -j RETURN 
+    #     iptables -t nat -I PREROUTING -d $ADDR -j RETURN
+    # done
+
+    # --- REDIRECT DNS ---
+    iptables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-ports $D_PORT
+    # iptables -t nat -A OUTPUT -p udp --dport 53 -m owner ! --gid-owner $GID -j REDIRECT --to-ports $D_PORT 
+    # iptables -t nat -I OUTPUT -p tcp -m owner ! --uid-owner 0 -j REDIRECT --to-ports $M_PORT
+
+    # Bypass Spesifik Port Dashboard agar tidak ter-REDIRECT (TCP)
+    #iptables -t nat -I PREROUTING -p tcp --dport $DASH_PORT -j RETURN
+    # iptables -t nat -I OUTPUT -p tcp --dport $DASH_PORT -j RETURN
+
+    # # --- REDIRECT TCP ---
+    iptables -t nat -A PREROUTING -p tcp -j REDIRECT --to-ports $R_PORT
+    # iptables -t nat -A OUTPUT -p tcp -m owner ! --gid-owner $GID -j REDIRECT --to-ports $R_PORT
+
+    # --- HOTSPOT ---
+    #iptables -t nat -I POSTROUTING -j MASQUERADE
+
+    echo "[IPTABLES] Success: NAT Redirect is active."
+}
+
+flush_rules() {
+    #iptables -t nat -F OUTPUT 2>/dev/null 
+    iptables -t nat -F PREROUTING 2>/dev/null 
+    iptables -t nat -F POSTROUTING 2>/dev/null
+    echo "[OK] Iptables Disabled."
+}
+
+case "$1" in
+  enable)
+    apply_rules
+    ;;
+  disable)
+    flush_rules
+    ;;
+  renew)
+    flush_rules
+    apply_rules
+    ;;
+  *)
+    echo "Usage: qtun.iptables {enable|disable|renew}"
+    ;;
+esac

@@ -1,0 +1,11 @@
+# Folder log dan temporary
+QTUN/run/*
+!QTUN/run/.gitkeep
+
+# File konfigurasi berisi akun (Sangat Penting!)
+QTUN/libuz/config.json
+QTUN/clash/config.yaml
+
+# File log dan cadangan
+*.log
+.DS_Store

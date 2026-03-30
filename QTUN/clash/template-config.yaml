@@ -1,0 +1,95 @@
+# --- General Settings ---
+mixed-port: 7890
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+external-controller: 0.0.0.0:9090
+global-client-fingerprint: chrome
+external-ui: ./dashboard
+
+# --- Tambahkan Blok TUN di Sini ---
+tun:
+  enable: true
+  stack: gvisor # system / gvisor / system / lwip
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+  auto-route: true 
+  auto-detect-interface: true 
+
+# --- Inbound Settings ---
+tproxy-port: 9898
+redir-port: 9797
+
+# --- Proxy Settings ---
+proxies:
+  - name: "Hysteria Turbo"
+    type: socks5
+    server: 127.0.0.1
+    port: 7777
+    udp: true
+
+proxy-groups:
+  - name: "ZIVPN Turbo"
+    type: select
+    proxies:
+      - "Hysteria Turbo"
+      - "DIRECT"
+  - name: "Keep-Alive"
+    type: url-test
+    proxies:
+      - "Hysteria Turbo"
+    url: http://www.gstatic.com/generate_204
+    interval: 20
+    tolerance: 500
+
+# --- DNS Settings (Crucial for Tethering) ---
+dns:
+  enable: true
+  ipv6: false
+  # Mendengarkan di semua interface agar Laptop bisa akses
+  listen: 0.0.0.0:1053
+  # Gunakan fake-ip untuk respon lebih cepat di client hotspot
+  enhanced-mode: fake-ip 
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "+.lan"
+    - "+.local"
+    - "IP-VPS"
+  
+  # DNS yang digunakan untuk resolve nama domain proxy
+  default-nameserver:
+    - 1.1.1.1
+    - 8.8.8.8
+    - 223.5.5.5
+  
+  # Upstream DNS (Tempat Clash bertanya)
+  nameserver:
+    - 1.1.1.1
+    - 8.8.8.8
+    - https://dns.google/dns-query
+  
+  # DNS Cadangan jika nameserver gagal
+  fallback:
+    - https://1.1.1.1/dns-query
+    - 9.9.9.9
+  
+  fallback-filter:
+    geoip: true
+    ipcidr:
+      - 240.0.0.0/4
+
+# --- Routing Rules ---
+rules:
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  
+  # Placeholder ini akan diganti otomatis oleh qtun.tool
+  - IP-CIDR,IP-VPS/32,DIRECT
+  
+  - DST-PORT,53,DIRECT
+  - MATCH,ZIVPN Turbo

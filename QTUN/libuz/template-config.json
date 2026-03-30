@@ -1,0 +1,15 @@
+{
+  "server": "IP-VPS:6000-19999",
+  "obfs": "hu``hqb`c",
+  "auth": "pwd-zivpn",
+  "socks5": {
+    "listen": "127.0.0.1:1080"
+  },
+  "insecure": true,
+  "recvwindowconn": 65536,
+  "recvwindow": 262144,
+  "disable_mtu_discovery": true,
+  "resolver": "8.8.8.8:53",
+  "down_mbps": 50,
+  "up_mbps": 10
+}
