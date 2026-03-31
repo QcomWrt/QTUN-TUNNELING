@@ -21,7 +21,9 @@ adb shell "su -c 'mv /data/local/tmp/QTUN /data/adb/'"
 
 # Beri izin eksekusi (penting!)
 adb shell "su -c 'chmod -R 755 /data/adb/QTUN/'"
+
 adb shell "su -c 'chmod 755 /data/adb/QTUN/scripts/qtun.service'"
+
 adb shell "su -c 'chown -R root:root /data/adb/QTUN/'"
 
 3. Tes Eksekusi dari device
@@ -30,6 +32,7 @@ Setelah dipindahkan pakai cara di atas, sekarang coba jalankan servicenya:
 Bash
 
 adb shell "su -c '/data/adb/QTUN/scripts/qtun.service start'"
+
 adb shell "su -c '/data/adb/QTUN/scripts/qtun.service start'"
 
 5. Pantau Log (Monitor Pergerakan)
