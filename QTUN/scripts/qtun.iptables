@@ -21,7 +21,7 @@ apply_rules() {
     # echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 
     # Flush Chain NAT
-    #iptables -t nat -F OUTPUT 2>/dev/null
+    iptables -t nat -F OUTPUT 2>/dev/null
     iptables -t nat -F PREROUTING 2>/dev/null
 
     setprop net.dns1 127.0.0.1
@@ -31,7 +31,7 @@ apply_rules() {
 
     # --- BYPASS ---
     # Bypass IP VPS agar tidak loop
-    # [ ! -z "$SERVER" ] && iptables -t nat -I OUTPUT -d "$SERVER" -j RETURN 
+    [ ! -z "$SERVER" ] && iptables -t nat -I OUTPUT -d "$SERVER" -j RETURN 
     # Bypass Local Traffic
     for ADDR in 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
         iptables -t nat -I OUTPUT -d $ADDR -j RETURN 
@@ -40,19 +40,17 @@ apply_rules() {
 
     # --- BYPASS DASHBOARD (WAJIB DI ATAS) ---
     # Bypass Spesifik Port Dashboard agar tidak ter-REDIRECT (TCP)
+    iptables -t nat -I OUTPUT -d 127.0.0.1 -j RETURN
+    iptables -t nat -I OUTPUT -p tcp --dport $DASH_PORT -j RETURN
     iptables -t nat -I PREROUTING -p tcp --dport $DASH_PORT -j RETURN
-    # iptables -t nat -I OUTPUT -p tcp --dport $DASH_PORT -j RETURN
 
     # --- REDIRECT DNS ---
+    iptables -t nat -A OUTPUT -p udp --dport 53 -j REDIRECT --to-ports $D_PORT
     iptables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-ports $D_PORT
     # iptables -t nat -A OUTPUT -p udp --dport 53 -m owner ! --gid-owner $GID -j REDIRECT --to-ports $D_PORT 
-    iptables -t nat -I OUTPUT -p tcp -m owner ! --uid-owner 0 -j REDIRECT --to-ports $M_PORT
-
-    # Bypass Spesifik Port Dashboard agar tidak ter-REDIRECT (TCP)
-    #iptables -t nat -I PREROUTING -p tcp --dport $DASH_PORT -j RETURN
-    # iptables -t nat -I OUTPUT -p tcp --dport $DASH_PORT -j RETURN
 
     # # --- REDIRECT TCP ---
+    iptables -t nat -A OUTPUT -p tcp -m owner ! --uid-owner 0 -j REDIRECT --to-ports $M_PORT
     iptables -t nat -A PREROUTING -p tcp -j REDIRECT --to-ports $R_PORT
     # iptables -t nat -A OUTPUT -p tcp -m owner ! --gid-owner $GID -j REDIRECT --to-ports $R_PORT
 
