@@ -4,7 +4,7 @@
 MODDIR="/data/adb/QTUN"
 TOOL="$MODDIR/scripts/qtun.tool"
 R_PORT="9797" 
-M_PORT="1053"
+D_PORT="1053"
 GID_CLASH="3004"
 
 case "$1" in
@@ -12,18 +12,18 @@ case "$1" in
     $TOOL start
     if [ $? -eq 0 ]; then 
         # 1. Bersihkan aturan lama agar tidak menumpuk
-        iptables -t nat -F OUTPUT 2>/dev/null
+        # iptables -t nat -F OUTPUT 2>/dev/null
         
         # 2. BYPASS: Jangan belokkan trafik internal/lokal
-        iptables -t nat -A OUTPUT -d 0.0.0.0/8 -j RETURN
-        iptables -t nat -A OUTPUT -d 10.0.0.0/8 -j RETURN
-        iptables -t nat -A OUTPUT -d 127.0.0.0/8 -j RETURN
-        iptables -t nat -A OUTPUT -d 169.254.0.0/16 -j RETURN
-        iptables -t nat -A OUTPUT -d 172.16.0.0/12 -j RETURN
-        iptables -t nat -A OUTPUT -d 192.168.0.0/16 -j RETURN
+        # iptables -t nat -A OUTPUT -d 0.0.0.0/8 -j RETURN
+        # iptables -t nat -A OUTPUT -d 10.0.0.0/8 -j RETURN
+        # iptables -t nat -A OUTPUT -d 127.0.0.0/8 -j RETURN
+        # iptables -t nat -A OUTPUT -d 169.254.0.0/16 -j RETURN
+        # iptables -t nat -A OUTPUT -d 172.16.0.0/12 -j RETURN
+        # iptables -t nat -A OUTPUT -d 192.168.0.0/16 -j RETURN
 
         # 3. REDIRECT: Belokkan TCP ke Clash, KECUALI trafik milik Clash itu sendiri (GID 3004)
-        iptables -t nat -A OUTPUT -p tcp -m owner ! --gid-owner $GID_CLASH -j REDIRECT --to-ports $M_PORT
+        # iptables -t nat -A OUTPUT -p tcp -m owner ! --gid-owner $GID_CLASH -j REDIRECT --to-ports $D_PORT
         
         echo "[QTUN] ZIVPN System is ONLINE."
     else
@@ -32,7 +32,7 @@ case "$1" in
     ;;
   stop)
     $TOOL stop
-    iptables -t nat -F OUTPUT 2>/dev/null
+    # iptables -t nat -F OUTPUT 2>/dev/null
     echo "[QTUN] ZIVPN System is OFFLINE." 
     ;;
   *)
