@@ -65,10 +65,16 @@ case "$1" in
     $BIN/libload -lport 7777 -tunnel $TUNNEL_LIST >> $RUNDIR/libuz.log 2>&1 &
     sleep 2
 
-    # 5. Sinkronisasi IP VPS ke Config Clash (Menimpa IP Lama)
+    # 5. Sinkronisasi IP VPS ke Config Clash
     log_msg "[3/3] Sinkronisasi IP VPS ($IP_ONLY) ke Clash..."
-    # Update fake-ip-filter dan rules agar IP VPS selalu DIRECT
-    $YQ -i "(.dns.fake-ip-filter[] | select(. == \"*\")) = \"$IP_ONLY\" | (.rules[] | select(contains(\"IP_VPS\"))) = \"IP-CIDR,$IP_ONLY/32,DIRECT\"" "$CONF_CLASH"
+
+    # REPLACE DI FAKE-IP-FILTER
+    # Mencari baris yang tepat berisi "IP-VPS" dan menggantinya dengan IP asli
+    $YQ -i "(.dns.fake-ip-filter[] | select(. == \"IP-VPS\")) = \"$IP_ONLY\"" "$CONF_CLASH"
+
+    # REPLACE DI RULES
+    # Mencari baris yang mengandung teks "IP-VPS" dan menggantinya dengan format IP-CIDR lengkap
+    $YQ -i "(.rules[] | select(contains(\"IP-VPS\"))) = \"IP-CIDR,$IP_ONLY/32,DIRECT\"" "$CONF_CLASH"
     
     # Jalankan Clash
     setuidgid 0:$GID_CLASH $BIN/clash -d $MODDIR/clash -f $CONF_CLASH > $RUNDIR/clash.log 2>&1 &
