@@ -6,6 +6,7 @@ BIN="$MODDIR/bin"
 YQ="$BIN/yq"
 JQ="$BIN/jq"
 RUNDIR="$MODDIR/run"
+PIDFILE="$RUNDIR/qtun.pid"
 
 # Path Config & Template
 TPL_UZ="$MODDIR/libuz/template-config.json"
@@ -75,6 +76,8 @@ case "$1" in
     # REPLACE DI RULES
     # Mencari baris yang mengandung teks "IP-VPS" dan menggantinya dengan format IP-CIDR lengkap
     $YQ -i "(.rules[] | select(contains(\"IP-VPS\"))) = \"IP-CIDR,$IP_ONLY/32,DIRECT\"" "$CONF_CLASH"
+
+    echo $! > "$PIDFILE"
     
     # Jalankan Clash
     setuidgid 0:$GID_CLASH $BIN/clash -d $MODDIR/clash -f $CONF_CLASH > $RUNDIR/clash.log 2>&1 &
@@ -84,6 +87,7 @@ case "$1" in
         log_msg "[SUCCESS] QTUN Online!"
     else
         log_msg "[FATAL] Handshake gagal. Cek akun atau koneksi."
+        rm -f "$PIDFILE"
         killall libuz libload clash 2>/dev/null
         exit 1
     fi

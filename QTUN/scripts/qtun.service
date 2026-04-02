@@ -2,40 +2,61 @@
 # File: /data/adb/QTUN/scripts/qtun.service
 
 MODDIR="/data/adb/QTUN"
+RUNDIR="$MODDIR/run"
 TOOL="$MODDIR/scripts/qtun.tool"
-R_PORT="9797" 
-D_PORT="1053"
-GID_CLASH="3004"
+QTUN_LOG="$RUNDIR/qtun.log"
+RUN_LOG="$RUNDIR/run.log"
+
+# Pastikan folder run tersedia
+mkdir -p "$RUNDIR"
+
+log_service() {
+    echo "[$(date '+%H:%M:%S')] [SERVICE] $1" >> "$RUN_LOG"
+}
 
 case "$1" in
   start)
-    $TOOL start
-    if [ $? -eq 0 ]; then 
-        # 1. Bersihkan aturan lama agar tidak menumpuk
-        # iptables -t nat -F OUTPUT 2>/dev/null
-        
-        # 2. BYPASS: Jangan belokkan trafik internal/lokal
-        # iptables -t nat -A OUTPUT -d 0.0.0.0/8 -j RETURN
-        # iptables -t nat -A OUTPUT -d 10.0.0.0/8 -j RETURN
-        # iptables -t nat -A OUTPUT -d 127.0.0.0/8 -j RETURN
-        # iptables -t nat -A OUTPUT -d 169.254.0.0/16 -j RETURN
-        # iptables -t nat -A OUTPUT -d 172.16.0.0/12 -j RETURN
-        # iptables -t nat -A OUTPUT -d 192.168.0.0/16 -j RETURN
+    log_service "Starting QTUN Services..."
+    
+    # Jalankan tool (core), output diarahkan ke qtun.log
+    $TOOL start > "$QTUN_LOG" 2>&1
+    RETVAL=$?
+    
+    # Salin hasil eksekusi tool ke run.log untuk audit
+    cat "$QTUN_LOG" >> "$RUN_LOG"
 
-        # 3. REDIRECT: Belokkan TCP ke Clash, KECUALI trafik milik Clash itu sendiri (GID 3004)
-        # iptables -t nat -A OUTPUT -p tcp -m owner ! --gid-owner $GID_CLASH -j REDIRECT --to-ports $D_PORT
-        
+    if [ $RETVAL -eq 0 ]; then 
         echo "[QTUN] ZIVPN System is ONLINE."
+        log_service "Status: ONLINE"
     else
-        echo "[QTUN] FAILED to start. Check $MODDIR/run/run.log" 
+        echo "[QTUN] FAILED to start. Check $QTUN_LOG"
+        log_service "Status: FAILED"
+        exit 1
     fi
     ;;
+    
   stop)
-    $TOOL stop
-    # iptables -t nat -F OUTPUT 2>/dev/null
-    echo "[QTUN] ZIVPN System is OFFLINE." 
+    log_service "Stopping QTUN Services..."
+    
+    $TOOL stop >> "$QTUN_LOG" 2>&1
+    cat "$QTUN_LOG" >> "$RUN_LOG"
+    
+    echo "[QTUN] ZIVPN System is OFFLINE."
+    log_service "Status: OFFLINE"
     ;;
+    
+  status)
+    $TOOL status
+    ;;
+    
+  restart)
+    $0 stop
+    sleep 2
+    $0 start
+    ;;
+    
   *)
-    echo "Usage: qtun.service {start|stop|restart|status}" 
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit 1
     ;;
 esac
