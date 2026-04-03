@@ -9,3 +9,5 @@ QTUN/clash/config.yaml
 # File log dan cadangan
 *.log
 .DS_Store
+.github/workflows/realese.yml
+qtun_test.zip
