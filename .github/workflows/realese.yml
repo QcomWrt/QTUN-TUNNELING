@@ -1,0 +1,104 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release Tag'
+        required: true
+      branch:
+        description: 'Push Changes Branch'
+        default: 'main'
+        required: true
+      changelog:
+        description: 'Catatan Perubahan'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Generate version date
+      - name: Get Version
+        id: get_version
+        run: echo "date=$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      # 3. Update update.json, module.prop, and CHANGELOG.md
+      - name: Update files
+        run: |
+          VERSION="${{ github.event.inputs.tag }}"
+          DATE_NUM="${{ steps.get_version.outputs.date }}"
+          DATE_HUMAN=$(date +%d-%m-%y)
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+
+          # update.json (Link ke repo QTUN-TUNNELING)
+          cat > update.json <<EOF
+          {
+            "version": "$VERSION",
+            "versionCode": "$DATE_NUM",
+            "zipUrl": "https://github.com/QcomWrt/QTUN-TUNNELING/releases/download/$VERSION/QTUN-Magisk-$VERSION.zip",
+            "changelog": "https://github.com/QcomWrt/QTUN-TUNNELING/raw/main/CHANGELOG.md"
+          }
+          EOF
+
+          # module.prop
+          sed -i "s/^version=.*/version=$VERSION/" module.prop
+          sed -i "s/^versionCode=.*/versionCode=$DATE_NUM/" module.prop
+
+          # Changelog
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+          fi
+          {
+            echo "#### Changelog $VERSION - $DATE_HUMAN"
+            echo "$CHANGELOG" | sed 's/^/- /'
+            echo ""
+            cat CHANGELOG.md
+          } > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+
+      # 4. Commit and push changes (Pakai ID GitHub Actions resmi)
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add update.json module.prop CHANGELOG.md
+          git commit -m "Release $VERSION" || echo "No changes to commit"
+          git push origin "${{ github.event.inputs.branch }}"
+
+      # 5. Build Module ZIP (Revisi Bagian Ini)
+      - name: Build Module ZIP
+        run: |
+          VERSION="${{ github.event.inputs.tag }}"
+          # Beri izin eksekusi pada semua script di repo sebelum di-zip
+          chmod +x customize.sh service.sh action.sh uninstall.sh QTUN/bin/* QTUN/scripts/*
+          
+          # Membuat ZIP dengan menyertakan SEMUA file kontrol
+          zip -r9 "QTUN-Magisk-$VERSION.zip" \
+          QTUN \
+          module.prop \
+          customize.sh \
+          service.sh \
+          action.sh \
+          uninstall.sh \
+          update.json \
+          CHANGELOG.md \
+          -x "*.git*" ".github/*"
+
+      # 6. Create GitHub Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          files: QTUN-Magisk-v*.zip
+          generate_release_notes: false
+          body: |
+            #### Changelog ${{ github.event.inputs.tag }}
+            ${{ github.event.inputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
