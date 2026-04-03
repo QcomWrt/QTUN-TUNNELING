@@ -1,24 +1,17 @@
 #!/system/bin/sh
 
-# Jalankan di background agar tidak menghambat booting
 (
-    # Tunggu sampai boot animation selesai (Sistem siap)
+    # Tunggu Android siap
     until [ "$(getprop init.svc.bootanim)" = "stopped" ]; do
-        sleep 5
+        sleep 10
     done
 
-    # Beri jeda tambahan agar IP Modem/Wi-Fi dapat
     sleep 10
 
-    if [ -f "/data/adb/QTUN/scripts/qtun.service" ]; then
-        # Pastikan permission aman lagi (jaga-jaga)
-        chmod 755 /data/adb/QTUN/scripts/*
-        chmod 755 /data/adb/QTUN/bin/*
-        
-        # Jalankan QTUN
-        /data/adb/QTUN/scripts/qtun.service start
-        /data/adb/QTUN/scripts/qtun.iptables enable
+    if [ -f "/data/adb/QTUN/scripts/start.sh" ]; then
+        chmod -R 755 /data/adb/QTUN/scripts/
+        /data/adb/QTUN/scripts/start.sh >/dev/null 2>&1
     else
-        echo "QTUN Service not found"
+        echo "Err: start.sh not found" > "/data/adb/QTUN/run/boot_err.log"
     fi
-)&
+) &

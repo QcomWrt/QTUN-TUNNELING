@@ -39,7 +39,7 @@ case "$1" in
     log_service "Stopping QTUN Services..."
     
     $TOOL stop >> "$QTUN_LOG" 2>&1
-    cat "$QTUN_LOG" >> "$RUN_LOG"
+    #cat "$QTUN_LOG" >> "$RUN_LOG"
     
     echo "[QTUN] ZIVPN System is OFFLINE."
     log_service "Status: OFFLINE"

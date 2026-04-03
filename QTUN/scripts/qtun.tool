@@ -8,7 +8,7 @@ JQ="$BIN/jq"
 RUNDIR="$MODDIR/run"
 PIDFILE="$RUNDIR/qtun.pid"
 
-# Path Config & Template
+# Path Config
 TPL_UZ="$MODDIR/libuz/template-config.json"
 CONF_UZ="$MODDIR/libuz/config.json"
 TPL_CLASH="$MODDIR/clash/template-config.yaml"
@@ -21,35 +21,36 @@ log_msg() {
     echo "[$(date '+%H:%M:%S')] $1" | tee -a $RUNDIR/run.log
 }
 
+cleanup_fail() {
+    log_msg "[FATAL] $1. Menghentikan semua proses."
+    killall libuz libload clash 2>/dev/null
+    rm -f "$PIDFILE"
+    echo "Service Failed at $(date)" >> $RUNDIR/libuz.log
+    exit 1
+}
+
 case "$1" in
   start)
-    echo "--- New Start Session ---" > $RUNDIR/run.log
+    echo "--- Start QTUN Session ---" > $RUNDIR/run.log
     killall libuz libload clash 2>/dev/null
     sleep 0.5
 
-    # 1. Cek & Buat Config dari Template jika tidak ada
-    if [ ! -f "$CONF_UZ" ]; then
-        log_msg "[WARN] config.json tidak ada. Membuat dari template..."
-        cp "$TPL_UZ" "$CONF_UZ"
-    fi
-    if [ ! -f "$CONF_CLASH" ]; then
-        log_msg "[WARN] config.yaml tidak ada. Membuat dari template..."
-        cp "$TPL_CLASH" "$CONF_CLASH"
-    fi
+    # 1. Validasi Config
+    [ ! -f "$CONF_UZ" ] && cp "$TPL_UZ" "$CONF_UZ"
+    [ ! -f "$CONF_CLASH" ] && cp "$TPL_CLASH" "$CONF_CLASH"
 
-    # 2. Ambil IP VPS Terbaru (Untuk Sinkronisasi)
     RAW_SERVER=$($JQ -r '.server' "$CONF_UZ")
     IP_ONLY=$(echo $RAW_SERVER | cut -d':' -f1)
     
     if [ "$IP_ONLY" == "IP-VPS" ] || [ -z "$IP_ONLY" ]; then
-        log_msg "[FATAL] Isi dulu akun VPS kamu di $CONF_UZ"
+        log_msg "[FATAL] Akun VPS belum diisi di $CONF_UZ"
         exit 1
     fi
 
-    # 3. Deteksi Core & Jalankan Workers (String Injection)
+    # 2. Tahap 1: Jalankan libuz (Workers)
     CPU_CORES=$(grep -c ^processor /proc/cpuinfo)
     [ -z "$CPU_CORES" ] || [ "$CPU_CORES" -eq 0 ] && CPU_CORES=4
-    log_msg "[1/3] Memulai $CPU_CORES Workers..."
+    log_msg "[1/3] Memulai $CPU_CORES libuz Workers..."
     
     TUNNEL_LIST=""
     for i in $(busybox seq 0 $((CPU_CORES - 1))); do
@@ -59,47 +60,59 @@ case "$1" in
         $BIN/libuz -s 'hu``hqb`c' --config "$JSON_DATA" >> $RUNDIR/libuz.log 2>&1 &
         sleep 0.2
     done
-    sleep 1
+    
+    sleep 2
+    if ! pidof libuz >/dev/null; then
+        cleanup_fail "libuz gagal berjalan (Cek akun/koneksi)"
+    fi
 
-    # 4. Jalankan Aggregator
+    # 3. Tahap 2: Jalankan Aggregator (libload)
     log_msg "[2/3] Menjalankan Aggregator (Port 7777)..."
     $BIN/libload -lport 7777 -tunnel $TUNNEL_LIST >> $RUNDIR/libuz.log 2>&1 &
+    
     sleep 2
+    if ! pidof libload >/dev/null; then
+        cleanup_fail "Aggregator (libload) gagal berjalan"
+    fi
 
-    # 5. Sinkronisasi IP VPS ke Config Clash
+    # 4. Sinkronisasi IP VPS ke Clash
     log_msg "[3/3] Sinkronisasi IP VPS ($IP_ONLY) ke Clash..."
-
-    # REPLACE DI FAKE-IP-FILTER
-    # Mencari baris yang tepat berisi "IP-VPS" dan menggantinya dengan IP asli
     $YQ -i "(.dns.fake-ip-filter[] | select(. == \"IP-VPS\")) = \"$IP_ONLY\"" "$CONF_CLASH"
-
-    # REPLACE DI RULES
-    # Mencari baris yang mengandung teks "IP-VPS" dan menggantinya dengan format IP-CIDR lengkap
     $YQ -i "(.rules[] | select(contains(\"IP-VPS\"))) = \"IP-CIDR,$IP_ONLY/32,DIRECT\"" "$CONF_CLASH"
 
+    # 5. Tahap 3: Jalankan Clash (Hanya jika Aggregator OK)
+    log_msg "Menjalankan Clash Core..."
+    # Kita simpan PID Clash (proses terakhir) ke PIDFILE
+    setuidgid 0:$GID_CLASH $BIN/clash -d $MODDIR/clash -f $CONF_CLASH > $RUNDIR/clash.log 2>&1 &
     echo $! > "$PIDFILE"
     
-    # Jalankan Clash
-    setuidgid 0:$GID_CLASH $BIN/clash -d $MODDIR/clash -f $CONF_CLASH > $RUNDIR/clash.log 2>&1 &
+    sleep 2
+    if ! pidof clash >/dev/null; then
+        cleanup_fail "Clash gagal berjalan (Cek config.yaml)"
+    fi
+
+    # 6. Verifikasi Koneksi Akhir (Handshake Check)
+    log_msg "Melakukan verifikasi koneksi ke Google..."
     
-    # Verifikasi Akhir
+    # Mencoba koneksi melalui port Aggregator (7777)
     if $BIN/curl -so /dev/null -x socks5h://127.0.0.1:7777 --connect-timeout 5 http://www.google.com; then
-        log_msg "[SUCCESS] QTUN Online!"
+        log_msg "[SUCCESS] QTUN System is ONLINE & Verified!"
     else
-        log_msg "[FATAL] Handshake gagal. Cek akun atau koneksi."
-        rm -f "$PIDFILE"
-        killall libuz libload clash 2>/dev/null
-        exit 1
+        # Cukup panggil fungsinya di sini
+        cleanup_fail "Handshake gagal. Cek akun VPS atau koneksi internet."
     fi
     ;;
 
   stop)
+    log_msg "[STOP] Menghentikan semua layanan QTUN..."
     killall libuz libload clash 2>/dev/null
-    log_msg "[STOP] Layanan dihentikan."
+    rm -f "$PIDFILE"
+    log_msg "[STOP] Layanan berhasil dihentikan."
     ;;
 
   status)
-    $BIN/jq -n "{\"workers\": \"$CPU_CORES\", \"status\": \"running\"}"
+    echo "--- QTUN Status ---"
     ps -ef | grep -E 'libuz|libload|clash' | grep -v grep
+    [ -f "$PIDFILE" ] && echo "PID File: $(cat $PIDFILE)" || echo "PID File: NOT FOUND"
     ;;
 esac

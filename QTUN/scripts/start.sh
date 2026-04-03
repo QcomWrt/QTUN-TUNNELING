@@ -1,16 +1,30 @@
 #!/system/bin/sh
+# File: /data/adb/QTUN/scripts/start.sh
 
-# Pastikan semua variabel menggunakan nama qtun
 scripts_dir="/data/adb/QTUN/scripts"
 run_dir="/data/adb/QTUN/run"
-moddir="/data/adb/modules/qtun_tunneling" # Sesuaikan dengan nama folder modul kamu
+moddir="/data/adb/modules/qtun_tunneling" 
 busybox="/data/adb/magisk/busybox"
 
-# Cek keberadaan busybox di berbagai lingkungan root
+# 1. Cek Status Modul (Disable Toggle)
+if [ -f "${moddir}/disable" ]; then
+  exit 0
+fi
+
+# 2. Cek Manual Mode
+if [ -f "/data/adb/QTUN/manual" ]; then
+  exit 1
+fi
+
 [ -f "/data/adb/ksu/bin/busybox" ] && busybox="/data/adb/ksu/bin/busybox"
 [ -f "/data/adb/ap/bin/busybox" ] && busybox="/data/adb/ap/bin/busybox"
 
 mkdir -p "$run_dir"
+
+# Fungsi untuk mencatat ke run.log
+log_run() {
+    echo "[$(date '+%H:%M:%S')] $1" >> "${run_dir}/run.log"
+}
 
 wait_for_data_ready() {
   while [ ! -f "/data/system/packages.xml" ] ; do
@@ -18,42 +32,26 @@ wait_for_data_ready() {
   done
 }
 
-refresh_qtun() {
-  if [ -f "${run_dir}/qtun.pid" ]; then
-    "${scripts_dir}/qtun.service" stop >> "${run_dir}/run.log" 2>&1
-    "${scripts_dir}/qtun.iptables" disable >> "${run_dir}/run.log" 2>&1
-  fi
-}
+# --- EKSEKUSI UTAMA ---
+wait_for_data_ready
 
-start_service() {
-  if [ ! -f "${moddir}/disable" ]; then
-    "${scripts_dir}/qtun.service" start >> "${run_dir}/run.log" 2>&1
-  fi
-}
+# Reset log saat booting
+echo "=== QTUN BOOT SESSION: $(date) ===" > "${run_dir}/run.log"
 
-enable_iptables() {
-  # List binary yang digunakan QTUN untuk dicek PID-nya
-  PIDS=("clash" "libuz" "libload")
-  PID=""
-  
-  for p in "${PIDS[@]}"; do
-    PID=$($busybox pidof "$p")
-    [ -n "$PID" ] && break
-  done
+log_run "[START] Membersihkan sisa proses lama..."
+"${scripts_dir}/qtun.service" stop >> "${run_dir}/run.log" 2>&1
+"${scripts_dir}/qtun.iptables" disable >> "${run_dir}/run.log" 2>&1
 
-  if [ -n "$PID" ]; then
-    "${scripts_dir}/qtun.iptables" enable >> "${run_dir}/run.log" 2>&1
-  fi
-}
+log_run "[START] Menjalankan Core Service (libuz, libload, clash)..."
+if "${scripts_dir}/qtun.service" start >> "${run_dir}/run.log" 2>&1;then
+  log_run "[FIREWALL] Mengaktifkan aturan Iptables..."
+  "${scripts_dir}/qtun.iptables" enable >> "${run_dir}/run.log" 2>&1
 
-# Eksekusi Utama
-if [ -f "/data/adb/QTUN/manual" ]; then
-  # Jika ada file 'manual', jangan jalankan otomatis saat boot
+  log_run "[SUCCESS] Boot sequence selesai."
+  log_run "[FINISH] Zivpn & Clash is Ready!"
+
+else
+  log_run "[ERROR] Core gagal start. Iptables dibatalkan demi keamanan."
+  echo "FAILED: Check run.log!"
   exit 1
 fi
-
-wait_for_data_ready
-echo "--- QTUN Auto-Start $(date) ---" > "${run_dir}/run.log"
-refresh_qtun
-start_service
-enable_iptables
