@@ -17,6 +17,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Wajib agar bot bisa push update.json dan create release
 
     steps:
       # 1. Checkout repository
@@ -37,7 +39,7 @@ jobs:
           DATE_HUMAN=$(date +%d-%m-%y)
           CHANGELOG="${{ github.event.inputs.changelog }}"
 
-          # update.json (Link ke repo QTUN-TUNNELING)
+          # update.json
           cat > update.json <<EOF
           {
             "version": "$VERSION",
@@ -62,7 +64,7 @@ jobs:
             cat CHANGELOG.md
           } > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
 
-      # 4. Commit and push changes (Pakai ID GitHub Actions resmi)
+      # 4. Commit and push changes
       - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
@@ -71,31 +73,24 @@ jobs:
           git commit -m "Release $VERSION" || echo "No changes to commit"
           git push origin "${{ github.event.inputs.branch }}"
 
-      # 5. Build Module ZIP (Revisi Bagian Ini)
+      # 5. Build Module ZIP via build.sh
       - name: Build Module ZIP
         run: |
-          VERSION="${{ github.event.inputs.tag }}"
-          # Beri izin eksekusi pada semua script di repo sebelum di-zip
-          chmod +x customize.sh service.sh action.sh uninstall.sh QTUN/bin/* QTUN/scripts/*
+          chmod +x build.sh
+          # Pastikan file lain executable sebelum masuk zip
+          chmod +x customize.sh service.sh action.sh uninstall.sh
+          [ -d "QTUN/bin" ] && chmod +x QTUN/bin/*
+          [ -d "QTUN/scripts" ] && chmod +x QTUN/scripts/*
           
-          # Membuat ZIP dengan menyertakan SEMUA file kontrol
-          zip -r9 "QTUN-Magisk-$VERSION.zip" \
-          QTUN \
-          module.prop \
-          customize.sh \
-          service.sh \
-          action.sh \
-          uninstall.sh \
-          update.json \
-          CHANGELOG.md \
-          -x "*.git*" ".github/*"
+          ./build.sh
 
       # 6. Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.tag }}
-          files: QTUN-Magisk-v*.zip
+          # Pakai wildcard lebih luas agar pasti ketemu filenya
+          files: QTUN-Magisk-*.zip
           generate_release_notes: false
           body: |
             #### Changelog ${{ github.event.inputs.tag }}
