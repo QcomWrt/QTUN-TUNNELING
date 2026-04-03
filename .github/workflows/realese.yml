@@ -51,7 +51,7 @@ jobs:
             "version": "$VERSION",
             "versionCode": "$DATE_NUM",
             "zipUrl": "https://github.com/QcomWrt/QTUN-TUNNELING/releases/download/$VERSION/QTUN-Magisk-$VERSION.zip",
-            "changelog": "https://github.com/QcomWrt/QTUN-TUNNELING/raw/main/CHANGELOG.md"
+            "changelog": "https://github.com/QcomWrt/QTUN-TUNNELING/raw/master/CHANGELOG.md"
           }
           EOF
 
