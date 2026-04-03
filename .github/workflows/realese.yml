@@ -8,17 +8,14 @@ on:
         required: true
       branch:
         description: 'Push Changes Branch'
-        default: 'master'
         required: true
       changelog:
-        description: 'Catatan Perubahan'
+        description: 'Changelog Content'
         required: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Wajib agar bot bisa push update.json dan create release
 
     steps:
       # 1. Checkout repository
@@ -36,21 +33,10 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.tag }}"
           DATE_NUM="${{ steps.get_version.outputs.date }}"
-          DATE_HUMAN=$(date +%d-%m-%Y)
+          DATE_HUMAN=$(date +%d-%m-%y)
           CHANGELOG="${{ github.event.inputs.changelog }}"
 
-          # 1. Update module.prop menggunakan sed (Hati-hati dengan tanda kutip)
-          sed -i "s/^version=.*/version=$VERSION/" module.prop
-          sed -i "s/^versionCode=.*/versionCode=$DATE_NUM/" module.prop
-          
-          # Gunakan logika sederhana untuk buildDate
-          if grep -q "buildDate=" module.prop; then
-            sed -i "s/^buildDate=.*/buildDate=$DATE_HUMAN/" module.prop
-          else
-            echo "buildDate=$DATE_HUMAN" >> module.prop
-          fi
-
-          # 2. Update update.json (Pastikan EOF tidak pakai kutip)
+          # update.json
           cat > update.json <<EOF
           {
             "version": "$VERSION",
@@ -60,9 +46,14 @@ jobs:
           }
           EOF
 
-          # 3. Update Changelog
+          # module.prop
+          sed -i "s/^version=.*/version=$VERSION/" module.prop
+          sed -i "s/^versionCode=.*/versionCode=$DATE_NUM/" module.prop
+
+          # Changelog
           if [ ! -f CHANGELOG.md ]; then
             echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
           fi
           {
             echo "#### Changelog $VERSION - $DATE_HUMAN"
@@ -75,20 +66,15 @@ jobs:
       - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add update.json module.prop CHANGELOG.md
-          git commit -m "Release $VERSION" || echo "No changes to commit"
-          git push origin "${{ github.event.inputs.branch }}"
+          git commit -m "${{ github.event.inputs.tag }}" || echo "No changes to commit"
+          git push origin "${{ github.event.inputs.branch }}" --force
 
-      # 5. Build Module ZIP via build.sh
-      - name: Build Module ZIP
+      # 5. Run build script
+      - name: Run build.sh
         run: |
           chmod +x build.sh
-          # Pastikan file lain executable sebelum masuk zip
-          chmod +x customize.sh service.sh action.sh uninstall.sh
-          [ -d "QTUN/bin" ] && chmod +x QTUN/bin/*
-          [ -d "QTUN/scripts" ] && chmod +x QTUN/scripts/*
-          
           ./build.sh
 
       # 6. Create GitHub Release
@@ -96,11 +82,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.tag }}
-          # Pakai wildcard lebih luas agar pasti ketemu filenya
-          files: QTUN-Magisk-*.zip
-          generate_release_notes: false
+          files: QTUN-Magisk-v*.zip
+          generate_release_notes: true
           body: |
-            #### Changelog ${{ github.event.inputs.tag }}
+            #### Changelog v${{ github.event.inputs.tag }}
             ${{ github.event.inputs.changelog }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
