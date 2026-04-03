@@ -8,7 +8,7 @@ on:
         required: true
       branch:
         description: 'Push Changes Branch'
-        default: 'main'
+        default: 'master'
         required: true
       changelog:
         description: 'Catatan Perubahan'
@@ -38,6 +38,12 @@ jobs:
           DATE_NUM="${{ steps.get_version.outputs.date }}"
           DATE_HUMAN=$(date +%d-%m-%y)
           CHANGELOG="${{ github.event.inputs.changelog }}"
+
+          if grep -q "buildDate=" module.prop; then
+            sed -i "s/^buildDate=.*/buildDate=$DATE_HUMAN/" module.prop
+          else
+            echo "buildDate=$DATE_HUMAN" >> module.prop
+          fi
 
           # update.json
           cat > update.json <<EOF

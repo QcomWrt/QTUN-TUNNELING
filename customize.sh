@@ -10,7 +10,7 @@ ui_print "                QTUN TUNNELING PROJECT                     "
 ui_print "-----------------------------------------------------------"
 ui_print "- Author     : azyanggara"
 ui_print "- Version    : $(grep_prop version $MODPATH/module.prop)"
-ui_print "- Build Date : $(date +%d-%m-%Y)"
+ui_print "- Build Date : $(grep_prop buildDate $MODPATH/module.prop)"
 ui_print "- Platform   : $([ "$KSU" = true ] && echo "KernelSU" || echo "Magisk")"
 ui_print "-----------------------------------------------------------"
 
