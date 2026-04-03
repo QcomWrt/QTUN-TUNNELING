@@ -36,30 +36,31 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.tag }}"
           DATE_NUM="${{ steps.get_version.outputs.date }}"
-          DATE_HUMAN=$(date +%d-%m-%y)
+          DATE_HUMAN=$(date +%d-%m-%Y)
           CHANGELOG="${{ github.event.inputs.changelog }}"
 
+          # 1. Update module.prop menggunakan sed (Hati-hati dengan tanda kutip)
+          sed -i "s/^version=.*/version=$VERSION/" module.prop
+          sed -i "s/^versionCode=.*/versionCode=$DATE_NUM/" module.prop
+          
+          # Gunakan logika sederhana untuk buildDate
           if grep -q "buildDate=" module.prop; then
             sed -i "s/^buildDate=.*/buildDate=$DATE_HUMAN/" module.prop
           else
             echo "buildDate=$DATE_HUMAN" >> module.prop
           fi
 
-          # update.json
+          # 2. Update update.json (Pastikan EOF tidak pakai kutip)
           cat > update.json <<EOF
           {
             "version": "$VERSION",
             "versionCode": "$DATE_NUM",
             "zipUrl": "https://github.com/QcomWrt/QTUN-TUNNELING/releases/download/$VERSION/QTUN-Magisk-$VERSION.zip",
-            "changelog": "https://github.com/QcomWrt/QTUN-TUNNELING/raw/master/CHANGELOG.md"
+            "changelog": "https://github.com/QcomWrt/QTUN-TUNNELING/raw/main/CHANGELOG.md"
           }
           EOF
 
-          # module.prop
-          sed -i "s/^version=.*/version=$VERSION/" module.prop
-          sed -i "s/^versionCode=.*/versionCode=$DATE_NUM/" module.prop
-
-          # Changelog
+          # 3. Update Changelog
           if [ ! -f CHANGELOG.md ]; then
             echo "# Changelog" > CHANGELOG.md
           fi
