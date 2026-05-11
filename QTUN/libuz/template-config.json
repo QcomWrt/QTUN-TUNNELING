@@ -1,7 +1,7 @@
 {
-  "server": "IP-VPS:6000-19999",
+  "server": "IP/DOMAIN SERVER:6000-19999",
   "obfs": "hu``hqb`c",
-  "auth": "pwd-zivpn",
+  "auth": "AUTH/PASSWORD AKUN",
   "socks5": {
     "listen": "127.0.0.1:1080"
   },
